@@ -1,0 +1,13 @@
+# Pastas de dependências (O causador do erro)
+node_modules/
+
+# Pastas de build geradas automaticamente
+dist/
+build/
+android/app/build/
+android/app/.cxx/
+android/.gradle/
+android/local.properties
+
+# Arquivos de ambiente
+.env
