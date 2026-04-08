@@ -14,23 +14,11 @@ export function Layout() {
   };
 
   const handleQuickExit = () => {
-    // 1. Limpa os rastros de uso da memória do navegador (Storage)
-    localStorage.clear();
-    sessionStorage.clear();
+    // 1. Log out do usuário por segurança
+    localStorage.removeItem("aurora_auth");
     
-    // 2. Oculta todo o conteúdo da tela instantaneamente
-    document.body.innerHTML = "";
-    document.body.style.backgroundColor = "#000000";
-    
-    // 3. Tenta fechar a aba (funciona em PWA e algumas instâncias nativas WebView)
-    try {
-      window.close();
-    } catch (e) {
-      console.error(e);
-    }
-    
-    // 4. Caso o fechamento falhe (por ser web), redireciona imediatamente apagando o histórico atual
-    window.location.replace("https://youtu.be/9BMwcO6_hyA?t=18");
+    // 2. Redireciona imediatamente para a tela disfarçada (livro de receitas) e apaga do histórico
+    navigate("/receitas", { replace: true });
   };
 
   const navItems = [
@@ -59,7 +47,7 @@ export function Layout() {
           size="sm"
           onClick={handleQuickExit}
           className="gap-2 px-3 py-1 bg-rose-100/50 text-rose-700 hover:bg-rose-200/50 border border-rose-200/50 shadow-sm"
-          title="Sair imediatamente e ir para o YouTube"
+          title="Saída Rápida"
         >
           <XOctagon className="w-4 h-4" />
           <span className="font-semibold">Sair Rápido</span>

@@ -8,6 +8,7 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Splash } from "./pages/Splash";
 import { AuthGuard } from "./components/AuthGuard";
+import { RecipeBook } from "./pages/RecipeBook";
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +22,10 @@ export const router = createBrowserRouter([
   {
     path: "/register",
     Component: Register,
+  },
+  {
+    path: "/receitas",
+    Component: RecipeBook,
   },
   {
     path: "/app",
