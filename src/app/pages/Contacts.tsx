@@ -8,7 +8,7 @@ const contacts = [
   {
     name: "Ligue 180",
     desc: "Central de Atendimento à Mulher",
-    details: "Denúncias e orientações. Funciona 24h, todos os dias. A ligação é gratuita e confidencial.",
+    details: "Denúncias e orientações. É por aqui que devemos começar (se não estiver correndo PERIGO IMEDIATO, como um atentado à sua vida). Funciona 24h, todos os dias. A ligação é gratuita e confidencial.",
     icon: Phone,
     color: "bg-rose-100 text-rose-700",
     number: "180",
@@ -16,7 +16,7 @@ const contacts = [
   {
     name: "Polícia Militar",
     desc: "Emergências Imediatas",
-    details: "Se você estiver em perigo imediato, ligue para a polícia. Funciona 24h.",
+    details: "Se você estiver em PERIGO IMEDIATO, ligue para a polícia. Funciona 24h.",
     icon: AlertTriangle,
     color: "bg-amber-100 text-amber-700",
     number: "190",
@@ -24,7 +24,7 @@ const contacts = [
   {
     name: "Delegacia da Mulher (DEAM)",
     desc: "Atendimento Especializado",
-    details: "Procure a delegacia mais próxima de você para registrar o boletim de ocorrência.",
+    details: "Se em sua cidade possuir uma Delegacia da Mulher, procure-a para registrar o boletim de ocorrência.",
     icon: Scale,
     color: "bg-teal-100 text-teal-700",
     number: "",
