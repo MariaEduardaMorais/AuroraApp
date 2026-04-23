@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router";
-import { Sparkles, ArrowRight, Lock, Mail } from "lucide-react";
+import { Sparkles, ArrowRight, Lock, Mail, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "../components/Button";
 
@@ -9,21 +9,45 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(""); 
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMsg(""); 
     
-    // Simula uma requisição de login segura e amigável
-    setTimeout(() => {
-      localStorage.setItem("aurora_auth", "true");
-      navigate("/app", { replace: true });
-    }, 1200);
+    try {
+      const response = await fetch("http://localhost:8000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          senha: password 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "sucesso") {
+        // Sucesso! Salva a autorização e o nome na memória do celular
+        localStorage.setItem("aurora_auth", "true");
+        localStorage.setItem("nomeUsuaria", data.nome_usuaria);
+
+        navigate("/app", { replace: true });
+      } else {
+        setErrorMsg(data.mensagem);
+      }
+    } catch (error) {
+      setErrorMsg("Erro de conexão. Verifique se o servidor está rodando.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-stone-50 px-6 py-12 relative overflow-hidden font-sans selection:bg-teal-200">
-      {/* Detalhe de fundo calmante */}
       <div className="absolute top-0 right-0 w-full h-64 bg-gradient-to-b from-teal-50/60 to-transparent pointer-events-none" />
       
       <div className="flex-1 max-w-sm w-full mx-auto flex flex-col justify-center z-10">
@@ -51,6 +75,17 @@ export function Login() {
           onSubmit={handleLogin} 
           className="space-y-5"
         >
+          {errorMsg && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="bg-red-50 text-red-600 p-3 rounded-xl text-sm flex items-center border border-red-100"
+            >
+              <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+              {errorMsg}
+            </motion.div>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wider ml-1">E-mail</label>
             <div className="relative">

@@ -1,5 +1,9 @@
 {
   "appId": "com.morais.aurora",
   "appName": "Aurora",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
 }

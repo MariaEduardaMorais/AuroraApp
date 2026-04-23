@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router";
-import { Sparkles, ArrowRight, Lock, Mail, User } from "lucide-react";
+import { Sparkles, ArrowRight, Lock, Mail, User, AlertCircle, CheckCircle2 } from "lucide-react"; // Adicionados ícones de alerta e sucesso
 import { motion } from "motion/react";
 import { Button } from "../components/Button";
 
@@ -10,24 +10,65 @@ export function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simula uma requisição de cadastro
-    setTimeout(() => {
-      localStorage.setItem("aurora_auth", "true");
-      navigate("/app", { replace: true });
-    }, 1200);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      // Faz a requisição real para o backend Python
+      console.log("Tentando conectar...");
+      const response = await fetch("http://localhost:8000/api/cadastro", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: name,
+          email: email,
+          senha: password
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text);
+      }
+
+      const data = await response.json();
+
+      if (data.status === "sucesso") {
+        setSuccessMsg("Conta criada com sucesso! Redirecionando...");
+
+        // Aguarda 2 segundinhos para a pessoa ler a mensagem e manda pro Login
+        setTimeout(() => {
+          navigate("/login", { replace: true });
+        }, 2000);
+      } else {
+        // Mostra o erro que veio do Python (ex: "Este email já está cadastrado")
+        setErrorMsg(data.mensagem);
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        setErrorMsg("Erro real: " + error.message);
+      } else {
+        setErrorMsg("Erro desconhecido");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-stone-50 px-6 py-10 relative overflow-hidden font-sans selection:bg-rose-200">
       <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-rose-50/60 to-transparent pointer-events-none" />
-      
+
       <div className="flex-1 max-w-sm w-full mx-auto flex flex-col justify-center z-10">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -44,20 +85,44 @@ export function Register() {
           </p>
         </motion.div>
 
-        <motion.form 
+        <motion.form
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          onSubmit={handleRegister} 
+          onSubmit={handleRegister}
           className="space-y-4"
         >
+          {/* Caixa de Erro condicional */}
+          {errorMsg && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="bg-red-50 text-red-600 p-3 rounded-xl text-sm flex items-center border border-red-100"
+            >
+              <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+              {errorMsg}
+            </motion.div>
+          )}
+
+          {/* Caixa de Sucesso condicional */}
+          {successMsg && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-sm flex items-center border border-emerald-100"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2 flex-shrink-0" />
+              {successMsg}
+            </motion.div>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-stone-500 uppercase tracking-wider ml-1">Como prefere ser chamada?</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
                 <User className="h-4 w-4" />
               </div>
-              <input 
+              <input
                 type="text"
                 required
                 value={name}
@@ -74,7 +139,7 @@ export function Register() {
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
                 <Mail className="h-4 w-4" />
               </div>
-              <input 
+              <input
                 type="email"
                 required
                 value={email}
@@ -91,7 +156,7 @@ export function Register() {
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
                 <Lock className="h-4 w-4" />
               </div>
-              <input 
+              <input
                 type="password"
                 required
                 minLength={6}
@@ -103,8 +168,8 @@ export function Register() {
             </div>
           </div>
 
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full mt-4 bg-stone-700 hover:bg-stone-800 text-white shadow-sm h-12 rounded-xl text-base font-medium transition-all group"
             disabled={isLoading}
           >
@@ -113,7 +178,7 @@ export function Register() {
           </Button>
         </motion.form>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.6 }}
