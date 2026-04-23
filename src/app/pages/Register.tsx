@@ -22,7 +22,7 @@ export function Register() {
     try {
       // Faz a requisição real para o backend Python
       console.log("Tentando conectar...");
-      const response = await fetch("http://localhost:8000/api/cadastro", {
+      const response = await fetch("https://hardhead-customize-freehand.ngrok-free.dev/api/cadastro", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
