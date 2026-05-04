@@ -25,7 +25,7 @@ export function Home() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-stone-600 leading-relaxed">
-              O botão "Sair Rápido" no topo da tela leva você imediatamente para o YouTube, caso precise de privacidade repentina.
+              O botão "Sair Rápido" no topo da tela leva você imediatamente para o YouTube.
             </p>
           </CardContent>
         </Card>
@@ -38,11 +38,11 @@ export function Home() {
             <div className="space-y-1">
               <h3 className="font-medium text-stone-800">Converse com a Aurora</h3>
               <p className="text-sm text-stone-500">
-                Nossa IA generativa ajuda você a reconhecer padrões e identificar sinais de violência psicológica de forma segura.
+                Nossa IA ajuda você a identificar sinais de violência psicológica.
               </p>
             </div>
             <Link to="/app/chat" className="w-full">
-              <Button variant="soft" className="w-full bg-rose-100 text-rose-800 hover:bg-rose-200 shadow-sm">
+              <Button className="w-full bg-rose-100 text-rose-800 hover:bg-rose-200">
                 Iniciar conversa
               </Button>
             </Link>
@@ -57,11 +57,11 @@ export function Home() {
             <div className="space-y-1">
               <h3 className="font-medium text-stone-800">Você não está só</h3>
               <p className="text-sm text-stone-500">
-                Aprenda a identificar sinais de desrespeito emocional e veja contatos de apoio.
+                Veja conteúdos e contatos de apoio.
               </p>
             </div>
             <Link to="/app/info" className="w-full">
-              <Button variant="soft" className="w-full shadow-sm">
+              <Button className="w-full">
                 Saber mais
               </Button>
             </Link>

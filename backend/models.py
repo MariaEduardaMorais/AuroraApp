@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -12,6 +12,9 @@ class Usuario(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     senha = Column(String(255), nullable=False)
     data_criacao = Column(DateTime, default=datetime.utcnow)
+    score_risco = Column(Float, default=0)
+    nivel_atual = Column(String, default="Verde")
+    ultimo_update = Column(DateTime, default=datetime.utcnow)
 
     # Relacionamentos
     sessoes_chat = relationship("ChatSession", back_populates="usuario")
@@ -36,5 +39,7 @@ class Mensagem(Base):
     remetente = Column(String(20)) # 'usuario' ou 'ia'
     conteudo = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    sinal = Column(String, nullable=True)
+    explicacao = Column(String, nullable=True)
 
     sessao = relationship("ChatSession", back_populates="mensagens")

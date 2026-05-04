@@ -13,38 +13,40 @@ import { RecipeBook } from "./pages/RecipeBook";
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: Splash,
+    element: <Splash />,
   },
   {
     path: "/login",
-    Component: Login,
+    element: <Login />,
   },
   {
     path: "/register",
-    Component: Register,
+    element: <Register />,
   },
   {
     path: "/receitas",
-    Component: RecipeBook,
+    element: <RecipeBook />,
   },
+
+  // 🔥 PROTEGIDO
   {
     path: "/app",
-    Component: AuthGuard,
+    element: <AuthGuard />,
     children: [
       {
-        path: "",
-        Component: Layout,
+        element: <Layout />, // 🔥 SEM path aqui
         children: [
-          { index: true, Component: Home },
-          { path: "chat", Component: Chat },
-          { path: "info", Component: Info },
-          { path: "contacts", Component: Contacts },
+          { index: true, element: <Home /> },
+          { path: "chat", element: <Chat /> },
+          { path: "info", element: <Info /> },
+          { path: "contacts", element: <Contacts /> },
         ],
       },
     ],
   },
+
   {
     path: "*",
-    Component: () => <Navigate to="/" replace />,
-  }
+    element: <Navigate to="/" replace />,
+  },
 ]);

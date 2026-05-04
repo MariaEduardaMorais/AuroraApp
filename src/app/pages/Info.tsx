@@ -1,7 +1,7 @@
-import React from "react";
-import { Link } from "react-router";
+import React, { useEffect } from "react";
+import { Link, useNavigate } from "react-router";
 import { ArrowLeft, BookOpen, AlertCircle, EyeOff, MessageSquareOff, UserMinus, ShieldAlert } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
+import { Card, CardContent } from "../components/Card";
 import { Button } from "../components/Button";
 
 const topics = [
@@ -36,6 +36,17 @@ const topics = [
 ];
 
 export function Info() {
+  const navigate = useNavigate();
+
+  // 🔐 PROTEÇÃO DE ROTA
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/login");
+    }
+  }, []);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-8">
       <div className="flex items-center gap-4 text-stone-500 mb-6">
@@ -62,7 +73,9 @@ export function Info() {
                   <Icon className={`w-6 h-6 ${topic.color}`} />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="font-medium text-stone-800 tracking-tight">{topic.title}</h3>
+                  <h3 className="font-medium text-stone-800 tracking-tight">
+                    {topic.title}
+                  </h3>
                   <p className="text-sm text-stone-500 leading-relaxed">
                     {topic.description}
                   </p>
@@ -77,14 +90,14 @@ export function Info() {
         <CardContent className="p-5 flex gap-4">
           <AlertCircle className="w-6 h-6 text-rose-500 shrink-0 mt-0.5" />
           <p className="text-sm text-rose-800 leading-relaxed">
-            Se você se identifica com essas situações, saiba que <strong>não é sua culpa</strong> e que existe apoio disponível.
+            Se você se identifica com essas situações, saiba que existe apoio disponível.
           </p>
         </CardContent>
       </Card>
-      
+
       <div className="pt-4">
         <Link to="/app/contacts" className="w-full block">
-          <Button variant="soft" className="w-full bg-teal-100 text-teal-800 hover:bg-teal-200 shadow-sm">
+          <Button className="w-full bg-teal-100 text-teal-800 hover:bg-teal-200 shadow-sm">
             Ver canais de apoio
           </Button>
         </Link>
