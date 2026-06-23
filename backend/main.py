@@ -1,6 +1,6 @@
 import os
 import json
-from google import genai
+import anthropic
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -16,9 +16,68 @@ from database import get_db
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+MODEL_NAME = "claude-haiku-4-5-20251001"
 
-# SYSTEM PROMPT
+SINAIS = {
+    "ciumes":       {"peso": 1},   # Amarelo leve
+    "humilhacao":   {"peso": 2},   # Amarelo moderado
+    "manipulacao":  {"peso": 2},   # Amarelo moderado
+    "isolamento":   {"peso": 4},   # Amarelo alto → beira Roxo
+    "controle":     {"peso": 4},   # Amarelo alto → beira Roxo
+    "empurrao":     {"peso": 6},   # Roxo imediato (agressão física)
+    "tapa":         {"peso": 7},   # Roxo imediato (agressão física)
+    "ameaca":       {"peso": 6},   # Roxo imediato
+    "arma":         {"peso": 10},  # Roxo grave
+    "abuso sexual": {"peso": 12}   # Roxo gravíssimo
+}
+
+NIVEL_ORDEM = {
+    "Verde": 0,
+    "Amarelo": 1,
+    "Roxo": 2
+}
+
+# ✅ Tool que força o Claude a responder SOMENTE com o JSON estruturado,
+# sem nenhum texto solto antes/depois (resolve "Extra data" no json.loads)
+#
+# IMPORTANTE: "nivel_atual" e "sugerir_ajuda" aqui são apenas a OPINIÃO do
+# modelo sobre a conversa. A decisão OFICIAL é recalculada pelo motor_v3()
+# no backend, de forma determinística, a partir de "sinal_detectado".
+# Isso evita que sugerir_ajuda fique inconsistente com o texto da resposta.
+AURORA_RESPONSE_TOOL = {
+    "name": "responder_aurora",
+    "description": "Registra a resposta estruturada da Aurora para a usuária, incluindo o sinal de risco identificado.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "texto_resposta": {
+                "type": "string",
+                "description": "Resposta acolhedora e/ou instrução de ajuda para a usuária."
+            },
+            "nivel_atual": {
+                "type": "string",
+                "enum": ["Verde", "Amarelo", "Roxo"],
+                "description": "Sua avaliação do nível de risco. Pode ser sobrescrita pelo motor de regras do backend."
+            },
+            "sinal_detectado": {
+                "type": ["string", "null"],
+                "enum": list(SINAIS.keys()) + [None],
+                "description": (
+                    "Sinal de violência detectado NESTA mensagem, escolhido EXATAMENTE entre as "
+                    "chaves disponíveis, ou null se nenhum sinal foi identificado. Não invente "
+                    "categorias fora desta lista."
+                )
+            },
+            "sugerir_ajuda": {
+                "type": "boolean",
+                "description": "Sua avaliação se deve sugerir ajuda. Pode ser sobrescrita pelo motor de regras do backend."
+            }
+        },
+        "required": ["texto_resposta", "nivel_atual", "sinal_detectado", "sugerir_ajuda"]
+    }
+}
+
 SYSTEM_PROMPT = """
         Você é Aurora, assistente especializada em identificar violência psicológica com base no Violentômetro.
 
@@ -27,7 +86,7 @@ SYSTEM_PROMPT = """
         - Nunca faça apenas uma pergunta genérica
         - Ofereça caminhos simples (ex: "algo que aconteceu", "como você se sente", "um exemplo")
         - Valide a dificuldade de falar
-        
+
         INTERPRETAÇÃO DE RESPOSTAS CURTAS:
         - Se a usuária responder apenas 'sim', 'não', 'às vezes', etc:
         - Relacione SEMPRE com sua pergunta anterior
@@ -64,20 +123,59 @@ SYSTEM_PROMPT = """
         - Só reduza nível se houver evidência MUITO clara
         - Detecte padrões repetidos
 
-        NÍVEIS:
-        - Verde: sem sinais
-        - Amarelo: ciúmes, humilhação, manipulação, piadas ofensivas, chantagear, mentir/enganar, ignorar, culpar, desqualificar, ridicularizar/ofender, intimidar/ameaçar
-        - Roxo: controle, isolamento (afastar de família e amigos), destruir bens pessoais, machucar, tapinhas/pancadinhas, brincar de bater, beliscar/arranhar, empurrar, dar tapas, chutar, confinar/prender
-        - Azul: ameaçar com objetos e/ou armas, abuso sexual, ameaçar de morte, forçar uma relação sexual, violentar, mutilar
+        NÍVEIS E COMPORTAMENTO POR NÍVEL:
 
-        FORMATO JSON OBRIGATÓRIO:
-        {
-         \"texto_resposta\": \"resposta acolhedora + pergunta\",
-         \"nivel_atual\": \"Verde|Amarelo|Roxo|Azul\","
-         \"sinal_detectado\": \"texto ou null\","
-         \"sugerir_ajuda\": true/false"
-        }
-        
+        🟢 VERDE — Ausência de sinais relevantes de violência psicológica.
+        - Mantenha postura de escuta ativa
+        - Não sinalize risco
+        - Faça perguntas abertas e acolhedoras para entender melhor a situação
+        - "sugerir_ajuda" deve ser FALSE
+
+        🟡 AMARELO — Presença de comportamentos como ciúme excessivo, manipulação emocional,
+        humilhações recorrentes e chantagem afetiva.
+        - Introduza gradualmente conteúdo educativo
+        - Incentive a reflexão sobre os comportamentos relatados
+        - Nomeie os padrões com cuidado, sem alarmismo
+        - Sinais típicos: ciúmes, humilhação, manipulação, piadas ofensivas, chantagem, mentira/engano,
+          ignorar, culpar, desqualificar, ridicularizar, intimidar
+        - "sugerir_ajuda" deve ser FALSE
+
+        🟣 ROXO — Identificação de controle excessivo, isolamento social, intimidação,
+        ameaças e agressões físicas leves.
+        - Sugira ATIVAMENTE a busca por apoio especializado
+        - Destaque os canais disponíveis na central de apoio
+        - Valide a coragem dela, diga que não é culpa dela
+        - Sinais típicos: controle, isolamento (afastar de família/amigos), destruir bens pessoais,
+          tapinhas, beliscar, empurrar, tapas, chutar, confinar, ameaças com objetos ou armas,
+          abuso sexual, ameaça de morte, forçar relação sexual, mutilar
+        - "sugerir_ajuda" deve ser TRUE
+        - Sua "texto_resposta" DEVE:
+          1. Validar a coragem dela por ter contado
+          2. Dizer claramente que o que ela vive é violência e ela não tem culpa
+          3. Informar sobre ajuda especializada, gratuita e sigilosa: ligue 180 (Central de Atendimento à Mulher)
+          4. Lembrar que em caso de perigo imediato, deve ligar 190 (Polícia Militar)
+          5. Não fazer mais perguntas abertas — apenas oferecer apoio
+
+        MENSAGENS FORA DE ESCOPO:
+        - O Aurora existe exclusivamente para apoiar identificação de violência psicológica e doméstica
+        - Se a usuária perguntar algo sem relação com esse propósito (ex: curiosidades, cultura pop,
+          perguntas escolares, piadas, assuntos técnicos, qualquer tema desconectado da sua vivência
+          emocional ou do relacionamento dela), NÃO responda à pergunta em si
+        - Explique de forma breve e gentil que você é a Aurora e seu papel é ajudá-la a refletir sobre
+          situações de relacionamento e violência psicológica, não é um assistente geral
+        - Convide-a a retomar o assunto: pergunte se há algo sobre o relacionamento ou sentimento dela
+          que gostaria de conversar
+        - Não trate isso como sinal de risco: mantenha "nivel_atual" inalterado (o mesmo nível atual
+          informado no contexto), "sinal_detectado" como null e "sugerir_ajuda" como false
+        - Tom: nunca repreenda ou seja seca. Seja acolhedora mesmo ao redirecionar
+
+        REGISTRO DA RESPOSTA:
+        - Você DEVE sempre usar a ferramenta "responder_aurora" para registrar sua resposta
+        - Preencha "texto_resposta" com a mensagem acolhedora para a usuária (sem JSON, sem markdown,
+          apenas o texto natural que ela vai ler)
+        - Preencha "nivel_atual", "sinal_detectado" e "sugerir_ajuda" de acordo com as regras de cada
+          nível descritas acima
+
     """
 
 app = FastAPI()
@@ -162,27 +260,6 @@ def login(user: UsuarioLogin, db: Session = Depends(get_db)):
         "nome_usuaria": db_user.nome
     }
 
-# ================= SINAIS =================
-SINAIS = {
-    "ciumes": {"peso": 1},
-    "humilhacao": {"peso": 2},
-    "manipulacao": {"peso": 2},
-    "isolamento": {"peso": 3},
-    "controle": {"peso": 3},
-    "empurrao": {"peso": 4},
-    "tapa": {"peso": 5},
-    "ameaca": {"peso": 6},
-    "arma": {"peso": 8},
-    "abuso sexual": {"peso": 10}
-}
-
-NIVEL_ORDEM = {
-    "Verde": 0,
-    "Amarelo": 1,
-    "Roxo": 2,
-    "Azul": 3
-}
-
 # ================= MOTOR V3 =================
 DECAY_POR_DIA = 0.9
 
@@ -193,9 +270,7 @@ def aplicar_decay(score, ultimo_update):
     return score
 
 def calcular_nivel(score):
-    if score >= 20:
-        return "Azul"
-    elif score >= 10:
+    if score >= 10:
         return "Roxo"
     elif score >= 4:
         return "Amarelo"
@@ -225,9 +300,12 @@ def motor_v3(usuario_db, sinal_detectado):
     return novo_nivel, score, explicacao
 
 def verificar_ajuda(score, nivel):
-    if nivel == "Azul":
+    if nivel == "Roxo":
         return True
-    if score >= 15:
+    # Sinais físicos (empurrao=6, tapa=7, ameaca=6) já ultrapassam 10 → Roxo direto.
+    # Este fallback cobre casos em que o score ficou entre 6-9 por acúmulo de sinais
+    # psicológicos graves (ex: isolamento + controle), mesmo sem chegar ao nível Roxo.
+    if score >= 6:
         return True
     return False
 
@@ -266,10 +344,8 @@ async def chat(
             for msg in reversed(historico_db)
         ])
 
-        # ✅ CONTEXTO COM SYSTEM PROMPT
+        # ✅ CONTEXTO (system prompt vai separado, como recomenda a Anthropic)
         contexto = f"""
-{SYSTEM_PROMPT}
-
 CONTEXTO:
 {historico_formatado}
 
@@ -279,23 +355,52 @@ MENSAGEM:
 {input_data.mensagem}
 """
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=contexto
+        response = client.messages.create(
+            model=MODEL_NAME,
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            tools=[AURORA_RESPONSE_TOOL],
+            tool_choice={"type": "tool", "name": "responder_aurora"},
+            messages=[
+                {"role": "user", "content": contexto}
+            ]
         )
 
-        texto_limpo = response.text.replace("```json", "").replace("```", "").strip()
+        # ✅ Com tool_choice forçado, o Claude SEMPRE retorna um bloco tool_use
+        # com o input já validado contra o schema — sem texto solto, sem
+        # markdown fences, sem risco de "Extra data" no parsing.
+        tool_block = next(
+            (block for block in response.content if block.type == "tool_use"),
+            None
+        )
 
-        try:
-            resposta = json.loads(texto_limpo)
-        except Exception as e:
-            print("ERRO no JSON:", e) # Isso ajuda a ver no terminal se der outro erro
+        if tool_block is None:
+            print("ERRO: nenhum tool_use encontrado na resposta")
             resposta = {
                 "texto_resposta": "Desculpe, tive um probleminha para processar isso. Pode me explicar de novo?",
                 "nivel_atual": usuario_db.nivel_atual,
                 "sinal_detectado": None,
                 "sugerir_ajuda": False
             }
+        else:
+            resposta = tool_block.input
+
+            # ✅ MOTOR DE REGRAS SOBRESCREVE A IA
+            # A IA só decide o TEXTO e qual SINAL foi detectado. A decisão
+            # oficial de "nivel_atual" e "sugerir_ajuda" vem do motor_v3,
+            # que é determinístico, baseado em score acumulado + decay,
+            # e nunca regride de nível. Isso evita o caso em que a IA
+            # escreve "ligue 180" no texto mas esquece de marcar
+            # sugerir_ajuda = true.
+            sinal_detectado = resposta.get("sinal_detectado")
+
+            novo_nivel, score, explicacao = motor_v3(usuario_db, sinal_detectado)
+            db.commit()
+
+            print("MOTOR_V3:", explicacao)
+
+            resposta["nivel_atual"] = novo_nivel
+            resposta["sugerir_ajuda"] = verificar_ajuda(score, novo_nivel)
 
         return {
             "status": "sucesso",
@@ -303,12 +408,12 @@ MENSAGEM:
             "uso": REQ_COUNT
         }
 
-    except Exception as e:
-        print("ERRO:", e)
-        erro_str = str(e)
-        
-        # Verifica se o erro é o 503 de servidor lotado
-        if "503" in erro_str or "UNAVAILABLE" in erro_str:
+    except anthropic.APIStatusError as e:
+        print("ERRO Anthropic:", e)
+
+        # 529 = overloaded_error (servidor sobrecarregado)
+        # 429 = rate_limit_error (limite de requisições atingido)
+        if e.status_code in (529, 429):
             resposta_amigavel = {
                 "texto_resposta": "Desculpe, a conexão aqui deu uma leve oscilada e eu perdi o raciocínio. Você se importa de me enviar essa última mensagem de novo?",
                 "nivel_atual": usuario_db.nivel_atual,
@@ -322,6 +427,10 @@ MENSAGEM:
                 "uso": REQ_COUNT
             }
 
+        raise HTTPException(status_code=500, detail="Erro interno na IA")
+
+    except Exception as e:
+        print("ERRO:", e)
         raise HTTPException(status_code=500, detail="Erro interno na IA")
 
 # ================= HISTÓRICO =================

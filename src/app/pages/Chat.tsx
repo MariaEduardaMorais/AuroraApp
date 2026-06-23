@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
-import { ArrowLeft, Send, Sparkles, User, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Send, Sparkles, User, AlertTriangle, Phone } from "lucide-react";
 import { Button } from "../components/Button";
 import { cn } from "../../lib/utils";
 
@@ -8,6 +8,7 @@ interface Message {
   id: string;
   role: "user" | "aurora";
   content: string;
+  sugerirAjuda?: boolean;
 }
 
 export function Chat() {
@@ -19,12 +20,12 @@ export function Chat() {
       role: "aurora",
       content:
         "Olá, eu sou a Aurora. Estou aqui para te ouvir de forma segura. Você pode começar como preferir: algo que aconteceu, como você se sente, ou um exemplo recente 💬",
+      sugerirAjuda: false,
     },
   ]);
 
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-
   const [nivelAtual, setNivelAtual] = useState("Verde");
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
@@ -70,8 +71,8 @@ export function Chat() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-          mensagem: userMessage.content,
-          nivel_atual: nivelAtual,
+            mensagem: userMessage.content,
+            nivel_atual: nivelAtual,
           }),
         }
       );
@@ -87,9 +88,15 @@ export function Chat() {
       }
 
       const data = await response.json();
+
+      // 🔍 DEBUG — remover após confirmar que sugerir_ajuda está chegando true
+      console.log("🔍 Resposta completa da API:", JSON.stringify(data, null, 2));
+      console.log("🔍 sugerir_ajuda:", data?.resposta_ia?.sugerir_ajuda, "| tipo:", typeof data?.resposta_ia?.sugerir_ajuda);
+
       const respostaIA = data.resposta_ia || {
-      texto_resposta: "Tive um problema ao processar sua mensagem. Pode tentar novamente?",
-      nivel_atual: nivelAtual,
+        texto_resposta: "Tive um problema ao processar sua mensagem. Pode tentar novamente?",
+        nivel_atual: nivelAtual,
+        sugerir_ajuda: false,
       };
 
       setNivelAtual(respostaIA.nivel_atual);
@@ -98,23 +105,22 @@ export function Chat() {
         id: (Date.now() + 1).toString(),
         role: "aurora",
         content: respostaIA.texto_resposta,
+        sugerirAjuda: respostaIA.sugerir_ajuda === true,  // garante boolean, nunca undefined
       };
 
       setMessages((prev) => [...prev, auroraMessage]);
 
     } catch (error) {
       console.error(error);
-
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 2).toString(),
           role: "aurora",
-          content:
-            "Estou com dificuldade de conexão no momento. Tente novamente.",
+          content: "Estou com dificuldade de conexão no momento. Tente novamente.",
+          sugerirAjuda: false,
         },
       ]);
-      return;
     } finally {
       setIsTyping(false);
     }
@@ -127,14 +133,9 @@ export function Chat() {
         <Link to="/app">
           <ArrowLeft className="w-5 h-5 hover:text-stone-800" />
         </Link>
-
         <div>
-          <h2 className="text-sm font-medium text-stone-800">
-            Aurora IA
-          </h2>
-          <p className="text-[10px] text-teal-600">
-            Nível atual: {nivelAtual}
-          </p>
+          <h2 className="text-sm font-medium text-stone-800">Aurora IA</h2>
+          <p className="text-[10px] text-teal-600">Nível atual: {nivelAtual}</p>
         </div>
       </div>
 
@@ -148,38 +149,54 @@ export function Chat() {
 
         <div className="space-y-4">
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex gap-3",
-                msg.role === "user" ? "flex-row-reverse" : "flex-row"
-              )}
-            >
+            <div key={msg.id} className="flex flex-col gap-2">
               <div
                 className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center",
-                  msg.role === "user"
-                    ? "bg-teal-100"
-                    : "bg-rose-100"
+                  "flex gap-3",
+                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
                 )}
               >
-                {msg.role === "user" ? (
-                  <User className="w-4 h-4" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                    msg.role === "user" ? "bg-teal-100" : "bg-rose-100"
+                  )}
+                >
+                  {msg.role === "user" ? (
+                    <User className="w-4 h-4" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                </div>
+
+                <div className="px-4 py-3 rounded-2xl bg-white border text-sm max-w-[85%]">
+                  {msg.content}
+                </div>
               </div>
 
-              <div className="px-4 py-3 rounded-2xl bg-white border text-sm">
-                {msg.content}
-              </div>
+              {msg.role === "aurora" && msg.sugerirAjuda === true && (
+                <div className="ml-11 flex flex-col gap-2 mt-1">
+                  <a
+                    href="tel:180"
+                    className="flex items-center justify-center gap-2 bg-rose-600 text-white py-2.5 px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-rose-700 active:bg-rose-800 transition-colors w-[260px]"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Ligar 180 — Central da Mulher
+                  </a>
+                  <a
+                    href="tel:190"
+                    className="flex items-center justify-center gap-2 bg-stone-800 text-white py-2.5 px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-stone-900 active:bg-stone-950 transition-colors w-[260px]"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Ligar 190 — Polícia Militar
+                  </a>
+                </div>
+              )}
             </div>
           ))}
 
           {isTyping && (
-            <p className="text-sm text-stone-400">
-              Aurora está digitando...
-            </p>
+            <p className="text-sm text-stone-400">Aurora está digitando...</p>
           )}
 
           <div ref={endOfMessagesRef} />
@@ -197,7 +214,6 @@ export function Chat() {
           rows={1}
           className="flex-1 resize-none p-2 text-sm outline-none max-h-32"
         />
-
         <Button type="submit" disabled={!inputValue.trim() || isTyping}>
           <Send className="w-4 h-4" />
         </Button>
