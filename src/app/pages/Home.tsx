@@ -11,7 +11,7 @@ export function Home() {
         <h2 className="text-3xl font-serif text-stone-800">Boas-vindas</h2>
         <p className="text-stone-500 text-sm max-w-[280px] mx-auto leading-relaxed">
           Este é o AURORA, um espaço seguro e acolhedor, feito para ajudar você a entender
-          melhor as dinâmicas dos seus relacionamentos com a ajuda da nossa IA.
+          melhor a dinâmica do seu relacionamento com a ajuda da nossa IA.
         </p>
       </div>
 
@@ -25,7 +25,7 @@ export function Home() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-stone-600 leading-relaxed">
-              O botão "Sair Rápido" no topo da tela leva você imediatamente para o YouTube.
+              Se precisar de privacidade, o botão "Sair Rápido", localizado no canto superior direito de todas as telas, te leva para um aplicativo de receitas.
             </p>
           </CardContent>
         </Card>

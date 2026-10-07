@@ -20,16 +20,29 @@ client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 MODEL_NAME = "claude-haiku-4-5-20251001"
 
 SINAIS = {
-    "ciumes":       {"peso": 1},   # Amarelo leve
-    "humilhacao":   {"peso": 2},   # Amarelo moderado
-    "manipulacao":  {"peso": 2},   # Amarelo moderado
-    "isolamento":   {"peso": 4},   # Amarelo alto → beira Roxo
-    "controle":     {"peso": 4},   # Amarelo alto → beira Roxo
-    "empurrao":     {"peso": 6},   # Roxo imediato (agressão física)
-    "tapa":         {"peso": 7},   # Roxo imediato (agressão física)
-    "ameaca":       {"peso": 6},   # Roxo imediato
-    "arma":         {"peso": 10},  # Roxo grave
-    "abuso sexual": {"peso": 12}   # Roxo gravíssimo
+    # --- AMARELO: sinais psicológicos iniciais ---
+    "ciumes":               {"peso": 1},   # Amarelo leve
+    "humilhacao":           {"peso": 2},   # Amarelo moderado
+    "manipulacao":          {"peso": 2},   # Amarelo moderado
+    "chantagem_afetiva":    {"peso": 2},   # Amarelo moderado
+    "controle_leve":        {"peso": 3},   # Amarelo (controlar saídas, roupas, amizades)
+
+    # --- ROXO: violência psicológica grave e coercitiva ---
+    "isolamento_total":     {"peso": 7},   # Cortar família, amigos, trabalho
+    "controle_extremo":     {"peso": 7},   # Monitoramento, proibições severas
+    "intimidacao":          {"peso": 6},   # Gritos, posturas ameaçadoras, humilhação pública
+    "perseguicao":          {"peso": 8},   # Stalkear, rastrear, aparecer nos locais
+    "destruicao_objetos":   {"peso": 6},   # Quebrar pertences como ameaça velada
+    "ameaca_fotos":         {"peso": 9},   # Revenge porn / exposição íntima
+    "ameaca_filhos":        {"peso": 10},  # Ameaçar tirar ou machucar filhos
+    "ameaca_suicidio":      {"peso": 7},   # Suicídio como instrumento de manipulação
+    "ameaca_morte":         {"peso": 10},  # Ameaça de morte direta
+
+    # --- ROXO: violência física ---
+    "empurrao":             {"peso": 6},
+    "tapa":                 {"peso": 7},
+    "abuso_sexual":         {"peso": 12},
+    "arma":                 {"peso": 10},
 }
 
 NIVEL_ORDEM = {
@@ -38,13 +51,6 @@ NIVEL_ORDEM = {
     "Roxo": 2
 }
 
-# ✅ Tool que força o Claude a responder SOMENTE com o JSON estruturado,
-# sem nenhum texto solto antes/depois (resolve "Extra data" no json.loads)
-#
-# IMPORTANTE: "nivel_atual" e "sugerir_ajuda" aqui são apenas a OPINIÃO do
-# modelo sobre a conversa. A decisão OFICIAL é recalculada pelo motor_v3()
-# no backend, de forma determinística, a partir de "sinal_detectado".
-# Isso evita que sugerir_ajuda fique inconsistente com o texto da resposta.
 AURORA_RESPONSE_TOOL = {
     "name": "responder_aurora",
     "description": "Registra a resposta estruturada da Aurora para a usuária, incluindo o sinal de risco identificado.",
@@ -100,7 +106,7 @@ SYSTEM_PROMPT = """
 
         CONSTRUÇÃO DE CENÁRIOS:
         - Analise padrões ao longo da conversa
-        - Combine sinais (ex: controle + humilhação)
+        - Combine sinais (ex: controle_leve + humilhacao evoluindo para controle_extremo)
         - A violência pode evoluir de nível
 
         PERGUNTAS GUIADAS:
@@ -123,6 +129,18 @@ SYSTEM_PROMPT = """
         - Só reduza nível se houver evidência MUITO clara
         - Detecte padrões repetidos
 
+        DISTINÇÃO IMPORTANTE — controle_leve vs controle_extremo:
+        - controle_leve: restrições pontuais sobre saídas, roupas, amizades, uso do celular
+        - controle_extremo: monitoramento sistemático (rastrear localização, ler mensagens),
+          proibições que isolam a pessoa de trabalho, família ou vida social de forma abrangente
+
+        ATENÇÃO ESPECIAL — ameaca_suicidio:
+        - Use este sinal SOMENTE quando a usuária relatar que o PARCEIRO ameaça se machucar
+          ou se matar como forma de manipulá-la ou impedi-la de ir embora.
+        - Se for a PRÓPRIA USUÁRIA expressando pensamentos de se machucar ou desistir da vida,
+          NÃO use este sinal. Nesse caso, acolha com cuidado, não faça perguntas que aprofundem
+          o sofrimento, e oriente gentilmente para o CVV (188, disponível 24h, gratuito e sigiloso).
+
         NÍVEIS E COMPORTAMENTO POR NÍVEL:
 
         🟢 VERDE — Ausência de sinais relevantes de violência psicológica.
@@ -131,23 +149,49 @@ SYSTEM_PROMPT = """
         - Faça perguntas abertas e acolhedoras para entender melhor a situação
         - "sugerir_ajuda" deve ser FALSE
 
-        🟡 AMARELO — Presença de comportamentos como ciúme excessivo, manipulação emocional,
-        humilhações recorrentes e chantagem afetiva.
+        🟡 AMARELO — Presença de comportamentos de controle e humilhação iniciais.
         - Introduza gradualmente conteúdo educativo
         - Incentive a reflexão sobre os comportamentos relatados
         - Nomeie os padrões com cuidado, sem alarmismo
-        - Sinais típicos: ciúmes, humilhação, manipulação, piadas ofensivas, chantagem, mentira/engano,
-          ignorar, culpar, desqualificar, ridicularizar, intimidar
-        - "sugerir_ajuda" deve ser FALSE
+        - Sinais típicos:
+          · ciumes: ciúme excessivo, fiscalização de contatos
+          · humilhacao: apelidos ofensivos, críticas constantes, ridicularizar
+          · manipulacao: culpar a vítima, distorcer fatos, gaslighting
+          · chantagem_afetiva: ameaçar terminar, retirar afeto como punição
+          · controle_leve: ditar roupas, proibir saídas pontuais, controlar dinheiro
+        - "sugerir_ajuda" será definido pelo backend com base no score acumulado:
+          · Score < 7 (Amarelo baixo): FALSE — apenas conteúdo educativo
+          · Score >= 7 (Amarelo alto): TRUE — mencione ajuda com tom acolhedor e sem urgência
 
-        🟣 ROXO — Identificação de controle excessivo, isolamento social, intimidação,
-        ameaças e agressões físicas leves.
+        🟡 AMARELO COM SCORE ALTO (sugerir_ajuda = TRUE):
+        - NÃO use a palavra "violência" ainda — a situação ainda está sendo compreendida
+        - Valide o que ela sente e nomeie o padrão com cuidado
+        - Mencione de forma acolhedora que existem serviços especializados, gratuitos
+          e sigilosos que podem ajudá-la a refletir sobre a situação
+        - Exemplo de tom: "O que você está descrevendo tem um padrão que merece atenção.
+          Você não precisa passar por isso sozinha — existe a Central de Atendimento à
+          Mulher, pelo 180, que é gratuita e sigilosa e pode conversar com você sobre
+          como você está se sentindo."
+        - NÃO mencione o 190 ainda (reservado para perigo imediato no nível Roxo)
+        - Continue fazendo perguntas — não encerre a escuta ativa
+
+        🟣 ROXO — Violência psicológica grave, coercitiva ou física.
         - Sugira ATIVAMENTE a busca por apoio especializado
         - Destaque os canais disponíveis na central de apoio
         - Valide a coragem dela, diga que não é culpa dela
-        - Sinais típicos: controle, isolamento (afastar de família/amigos), destruir bens pessoais,
-          tapinhas, beliscar, empurrar, tapas, chutar, confinar, ameaças com objetos ou armas,
-          abuso sexual, ameaça de morte, forçar relação sexual, mutilar
+        - Sinais típicos:
+          · isolamento_total: cortar contato com família, amigos ou trabalho
+          · controle_extremo: rastrear localização, monitorar mensagens, proibições abrangentes
+          · intimidacao: gritos, posturas ameaçadoras, humilhação pública sistemática
+          · perseguicao: aparecer nos locais sem avisar, seguir, vigiar
+          · destruicao_objetos: quebrar pertences como forma de ameaça ou demonstração de poder
+          · ameaca_fotos: ameaçar divulgar imagens íntimas (revenge porn)
+          · ameaca_filhos: ameaçar tirar a guarda ou machucar os filhos
+          · ameaca_suicidio: parceiro ameaça se matar para manipular ou impedir separação
+          · ameaca_morte: ameaça de matar a vítima ou pessoas próximas
+          · empurrao / tapa: agressão física
+          · abuso_sexual: forçar atos sexuais
+          · arma: uso ou ameaça com objeto ou arma
         - "sugerir_ajuda" deve ser TRUE
         - Sua "texto_resposta" DEVE:
           1. Validar a coragem dela por ter contado
@@ -175,7 +219,6 @@ SYSTEM_PROMPT = """
           apenas o texto natural que ela vai ler)
         - Preencha "nivel_atual", "sinal_detectado" e "sugerir_ajuda" de acordo com as regras de cada
           nível descritas acima
-
     """
 
 app = FastAPI()
@@ -300,14 +343,19 @@ def motor_v3(usuario_db, sinal_detectado):
     return novo_nivel, score, explicacao
 
 def verificar_ajuda(score, nivel):
+    """
+    Retorna:
+        mostrar_ajuda -> exibir recursos de apoio
+        emergencia -> exibir também botão 190
+    """
+
     if nivel == "Roxo":
-        return True
-    # Sinais físicos (empurrao=6, tapa=7, ameaca=6) já ultrapassam 10 → Roxo direto.
-    # Este fallback cobre casos em que o score ficou entre 6-9 por acúmulo de sinais
-    # psicológicos graves (ex: isolamento + controle), mesmo sem chegar ao nível Roxo.
-    if score >= 6:
-        return True
-    return False
+        return True, True
+
+    if score >= 7:
+        return True, False
+
+    return False, False
 
 # ================= CHAT =================
 
@@ -344,7 +392,6 @@ async def chat(
             for msg in reversed(historico_db)
         ])
 
-        # ✅ CONTEXTO (system prompt vai separado, como recomenda a Anthropic)
         contexto = f"""
 CONTEXTO:
 {historico_formatado}
@@ -366,9 +413,6 @@ MENSAGEM:
             ]
         )
 
-        # ✅ Com tool_choice forçado, o Claude SEMPRE retorna um bloco tool_use
-        # com o input já validado contra o schema — sem texto solto, sem
-        # markdown fences, sem risco de "Extra data" no parsing.
         tool_block = next(
             (block for block in response.content if block.type == "tool_use"),
             None
@@ -385,13 +429,6 @@ MENSAGEM:
         else:
             resposta = tool_block.input
 
-            # ✅ MOTOR DE REGRAS SOBRESCREVE A IA
-            # A IA só decide o TEXTO e qual SINAL foi detectado. A decisão
-            # oficial de "nivel_atual" e "sugerir_ajuda" vem do motor_v3,
-            # que é determinístico, baseado em score acumulado + decay,
-            # e nunca regride de nível. Isso evita o caso em que a IA
-            # escreve "ligue 180" no texto mas esquece de marcar
-            # sugerir_ajuda = true.
             sinal_detectado = resposta.get("sinal_detectado")
 
             novo_nivel, score, explicacao = motor_v3(usuario_db, sinal_detectado)
@@ -399,8 +436,11 @@ MENSAGEM:
 
             print("MOTOR_V3:", explicacao)
 
+            mostrar_ajuda, emergencia = verificar_ajuda(score, novo_nivel)
+
             resposta["nivel_atual"] = novo_nivel
-            resposta["sugerir_ajuda"] = verificar_ajuda(score, novo_nivel)
+            resposta["sugerir_ajuda"] = mostrar_ajuda
+            resposta["emergencia"] = emergencia
 
         return {
             "status": "sucesso",
@@ -411,8 +451,6 @@ MENSAGEM:
     except anthropic.APIStatusError as e:
         print("ERRO Anthropic:", e)
 
-        # 529 = overloaded_error (servidor sobrecarregado)
-        # 429 = rate_limit_error (limite de requisições atingido)
         if e.status_code in (529, 429):
             resposta_amigavel = {
                 "texto_resposta": "Desculpe, a conexão aqui deu uma leve oscilada e eu perdi o raciocínio. Você se importa de me enviar essa última mensagem de novo?",

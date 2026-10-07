@@ -8,7 +8,11 @@ interface Message {
   id: string;
   role: "user" | "aurora";
   content: string;
+
   sugerirAjuda?: boolean;
+  emergencia?: boolean;
+
+  nivel?: "Verde" | "Amarelo" | "Roxo";
 }
 
 export function Chat() {
@@ -105,7 +109,11 @@ export function Chat() {
         id: (Date.now() + 1).toString(),
         role: "aurora",
         content: respostaIA.texto_resposta,
-        sugerirAjuda: respostaIA.sugerir_ajuda === true,  // garante boolean, nunca undefined
+
+        sugerirAjuda: respostaIA.sugerir_ajuda === true,
+        emergencia: respostaIA.emergencia === true,
+
+        nivel: respostaIA.nivel_atual
       };
 
       setMessages((prev) => [...prev, auroraMessage]);
@@ -174,24 +182,51 @@ export function Chat() {
                 </div>
               </div>
 
-              {msg.role === "aurora" && msg.sugerirAjuda === true && (
-                <div className="ml-11 flex flex-col gap-2 mt-1">
-                  <a
-                    href="tel:180"
-                    className="flex items-center justify-center gap-2 bg-rose-600 text-white py-2.5 px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-rose-700 active:bg-rose-800 transition-colors w-[260px]"
-                  >
-                    <Phone className="w-4 h-4" />
-                    Ligar 180 — Central da Mulher
-                  </a>
-                  <a
-                    href="tel:190"
-                    className="flex items-center justify-center gap-2 bg-stone-800 text-white py-2.5 px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-stone-900 active:bg-stone-950 transition-colors w-[260px]"
-                  >
-                    <Phone className="w-4 h-4" />
-                    Ligar 190 — Polícia Militar
-                  </a>
+              {msg.role === "aurora" &&
+                msg.sugerirAjuda &&
+                msg.nivel === "Amarelo" && (
+                <div className="ml-11 mt-2 rounded-xl border border-amber-300 bg-amber-50 p-4 w-[320px]">
+                    <p className="text-sm text-stone-700 mb-3">
+                        Caso você sinta necessidade, existem serviços especializados,
+                        gratuitos e sigilosos que podem oferecer orientação e apoio.
+                    </p>
+                    <a
+                        href="tel:180"
+                        className="flex items-center justify-center gap-2 bg-amber-500 text-white py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-amber-600 transition-colors"
+                    >
+                        <Phone className="w-4 h-4" />
+                        Ligar 180 — Central da Mulher
+                    </a>
                 </div>
-              )}
+                )}
+
+                {msg.role === "aurora" &&
+                  msg.emergencia &&
+                  msg.nivel === "Roxo" && (
+                  <div className="ml-11 mt-2 rounded-xl border border-rose-300 bg-rose-50 p-4 w-[320px]">
+
+                      <p className="text-sm text-stone-700 mb-3">
+                          Pela situação descrita, é importante buscar apoio especializado.
+                          Se houver risco imediato à sua segurança, procure ajuda agora.
+                      </p>
+                      <div className="flex flex-col gap-2">
+                          <a
+                              href="tel:180"
+                              className="flex items-center justify-center gap-2 bg-rose-600 text-white py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-rose-700 transition-colors"
+                          >
+                              <Phone className="w-4 h-4" />
+                              Ligar 180 — Central da Mulher
+                          </a>
+                          <a
+                              href="tel:190"
+                              className="flex items-center justify-center gap-2 bg-stone-800 text-white py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-stone-900 transition-colors"
+                          >
+                              <Phone className="w-4 h-4" />
+                              Ligar 190 — Polícia Militar
+                          </a>
+                      </div>
+                  </div>
+                  )}
             </div>
           ))}
 
